@@ -1,0 +1,19 @@
+hackmd:
+  api_token: "YOUR_HACKMD_API_TOKEN"
+  api_base: "https://api.hackmd.io/v1"
+
+obsidian:
+  vault_path: "/path/to/your/obsidian/vault"
+  sync_folder: "HackMD"
+
+sync:
+  interval: 300
+  conflict_strategy: "keep_both"  # keep_both | hackmd_wins | obsidian_wins
+  default_read_permission: "owner"  # owner | signed_in | guest
+  default_write_permission: "owner"
+  api_delay: 0.3
+  mtime_tolerance: 2
+
+logging:
+  level: "INFO"  # DEBUG | INFO | WARNING | ERROR
+  max_size_mb: 10
