@@ -1,0 +1,15 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+### Fixed
+- Prevent overlapping sync runs with a lock file so schedulers cannot pile up concurrent jobs.
+- Fix scheduler command ordering so background services pass `--config` before the `run` subcommand.
+- Skip non-canonical files when the same `hackmd_id` appears in multiple local notes, reducing repeated PATCH storms.
+- Avoid duplicate log lines in non-interactive scheduler runs by only attaching stdout logging for TTY sessions.
+
+### Operational guidance
+- If logs warn about duplicate `hackmd_id` values, keep a single canonical note per HackMD note ID in the vault.
+- If HackMD returns 429 quota errors, reduce sync frequency and confirm only one scheduler is installed.

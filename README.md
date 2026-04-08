@@ -118,6 +118,20 @@ sync:
 
 See [config.example.yaml](config.example.yaml) for the full reference.
 
+## Reliability & Safety
+
+Recent hardening added a few protections to make scheduled sync safer:
+
+- Only one sync process runs at a time; overlapping scheduled runs are skipped.
+- Background schedulers now pass `--config` correctly before the `run` subcommand.
+- If the same `hackmd_id` appears in multiple local files, only the canonical file tracked in state is pushed.
+- Non-interactive scheduler runs no longer duplicate every log line into the same log file.
+
+If you see repeated `429` responses from HackMD:
+- verify that only one scheduler is installed
+- increase the sync interval
+- check for duplicate `hackmd_id` values in your vault
+
 ## FAQ
 
 **Q: iCloud "permission denied" errors?**
