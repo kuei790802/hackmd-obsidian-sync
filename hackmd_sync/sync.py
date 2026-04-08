@@ -190,7 +190,8 @@ def _sync_pull(api, state, sync_dir, sync_config, result):
 def _scan_duplicate_hackmd_ids(sync_dir):
     """Return hackmd_id -> [file paths] for IDs that appear in more than one file."""
     seen = {}
-    for root, _dirs, files in os.walk(sync_dir):
+    for root, dirs, files in os.walk(sync_dir):
+        dirs[:] = [d for d in dirs if d != ".duplicate-archive"]
         for fname in files:
             if not fname.endswith(".md") or ".hackmd-conflict-" in fname:
                 continue

@@ -252,3 +252,14 @@ def test_cmd_duplicates_apply_archives_duplicates(tmp_path, monkeypatch, capsys)
     assert "Archived 1 duplicate file(s)" in out
     assert canonical.exists()
     assert not duplicate.exists()
+
+
+def test_scan_duplicate_hackmd_ids_ignores_archive_directory(tmp_path):
+    canonical = tmp_path / "canonical.md"
+    archived = tmp_path / ".duplicate-archive" / "duplicate.md"
+    write_note(canonical, "dup-1")
+    write_note(archived, "dup-1")
+
+    duplicates = sync._scan_duplicate_hackmd_ids(str(tmp_path))
+
+    assert duplicates == {}
