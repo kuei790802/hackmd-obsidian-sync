@@ -94,6 +94,8 @@ python3 -m hackmd_sync install     # Install as background service
 python3 -m hackmd_sync uninstall   # Remove background service
 python3 -m hackmd_sync log         # Tail the sync log
 python3 -m hackmd_sync conflicts   # List unresolved conflicts
+python3 -m hackmd_sync duplicates  # Dry-run duplicate hackmd_id report
+python3 -m hackmd_sync duplicates --apply  # Archive non-canonical duplicates safely
 ```
 
 ## Configuration
@@ -131,6 +133,8 @@ If you see repeated `429` responses from HackMD:
 - verify that only one scheduler is installed
 - increase the sync interval
 - check for duplicate `hackmd_id` values in your vault
+- run `python3 -m hackmd_sync duplicates` to inspect duplicate mappings
+- run `python3 -m hackmd_sync duplicates --apply` to archive non-canonical duplicates into `.duplicate-archive/`
 
 ## FAQ
 

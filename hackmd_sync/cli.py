@@ -8,7 +8,7 @@ import time
 
 from . import __version__
 from .config import load_config, get_config_dir
-from .sync import run_sync
+from .sync import run_sync, find_duplicate_notes, archive_duplicate_notes
 from .state import SyncState
 from .scheduler import install, uninstall
 
@@ -237,6 +237,31 @@ def cmd_conflicts(args):
         print("No conflicts found.")
 
 
+def cmd_duplicates(args):
+    config = load_config(args.config)
+    sync_dir = config["_sync_dir"]
+    state = SyncState(config["_state_file"])
+    duplicates = find_duplicate_notes(sync_dir, state)
+
+    if not duplicates:
+        print("No duplicate HackMD note mappings found.")
+        return
+
+    print(f"Duplicate HackMD note mappings found: {len(duplicates)}\n")
+    for item in duplicates:
+        print(f"HackMD ID: {item['hackmd_id']}")
+        print(f"  Canonical: {item['canonical_path']}")
+        for path in item["duplicate_paths"]:
+            print(f"  Duplicate: {path}")
+        print()
+
+    if args.apply:
+        archived = archive_duplicate_notes(sync_dir, state)
+        print(f"Archived {len(archived)} duplicate file(s) into {os.path.join(sync_dir, '.duplicate-archive')}")
+    else:
+        print("Dry-run only. Re-run with `duplicates --apply` to archive non-canonical duplicate files.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="hackmd-sync",
@@ -254,6 +279,8 @@ def main():
     sub.add_parser("uninstall", help="Remove background service")
     sub.add_parser("log", help="Tail the sync log")
     sub.add_parser("conflicts", help="List unresolved conflicts")
+    duplicates_parser = sub.add_parser("duplicates", help="Scan or archive duplicate HackMD note mappings")
+    duplicates_parser.add_argument("--apply", action="store_true", help="Archive non-canonical duplicate files instead of only reporting them")
 
     args = parser.parse_args()
 
@@ -265,6 +292,7 @@ def main():
         "uninstall": cmd_uninstall,
         "log": cmd_log,
         "conflicts": cmd_conflicts,
+        "duplicates": cmd_duplicates,
     }
 
     if args.command in commands:

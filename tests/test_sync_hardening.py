@@ -180,3 +180,75 @@ def test_sync_push_skips_non_canonical_duplicate(tmp_path, monkeypatch):
     assert api.updated == [("dup-1", "canonical body")]
     assert result.pushed == 1
     assert result.skipped >= 1
+
+
+def test_find_duplicate_notes_prefers_state_canonical_path(tmp_path):
+    canonical = tmp_path / "canonical.md"
+    duplicate = tmp_path / "nested" / "duplicate.md"
+    write_note(canonical, "dup-1")
+    write_note(duplicate, "dup-1")
+
+    state = DummyState({"dup-1": {"filePath": str(duplicate)}})
+
+    duplicates = sync.find_duplicate_notes(str(tmp_path), state)
+
+    assert len(duplicates) == 1
+    assert duplicates[0]["hackmd_id"] == "dup-1"
+    assert duplicates[0]["canonical_path"] == str(duplicate)
+    assert duplicates[0]["duplicate_paths"] == [str(canonical)]
+
+
+def test_archive_duplicate_notes_moves_only_non_canonical_files(tmp_path):
+    canonical = tmp_path / "canonical.md"
+    duplicate = tmp_path / "nested" / "duplicate.md"
+    write_note(canonical, "dup-1")
+    write_note(duplicate, "dup-1")
+
+    state = DummyState({"dup-1": {"filePath": str(canonical)}})
+
+    archived = sync.archive_duplicate_notes(str(tmp_path), state)
+
+    assert len(archived) == 1
+    archived_path = Path(archived[0]["archived_to"])
+    assert canonical.exists()
+    assert not duplicate.exists()
+    assert archived_path.exists()
+    assert ".duplicate-archive" in str(archived_path)
+
+
+def test_cmd_duplicates_dry_run_prints_report(tmp_path, monkeypatch, capsys):
+    canonical = tmp_path / "canonical.md"
+    duplicate = tmp_path / "nested" / "duplicate.md"
+    write_note(canonical, "dup-1")
+    write_note(duplicate, "dup-1")
+
+    config = {"_sync_dir": str(tmp_path), "_state_file": str(tmp_path / "state.json")}
+    monkeypatch.setattr(cli, "load_config", lambda _path: config)
+    monkeypatch.setattr(cli, "SyncState", lambda _path: DummyState({"dup-1": {"filePath": str(canonical)}}))
+
+    args = type("Args", (), {"config": "dummy.yaml", "apply": False})()
+    cli.cmd_duplicates(args)
+
+    out = capsys.readouterr().out
+    assert "Duplicate HackMD note mappings found: 1" in out
+    assert "dry-run" in out.lower()
+    assert str(duplicate) in out
+
+
+def test_cmd_duplicates_apply_archives_duplicates(tmp_path, monkeypatch, capsys):
+    canonical = tmp_path / "canonical.md"
+    duplicate = tmp_path / "nested" / "duplicate.md"
+    write_note(canonical, "dup-1")
+    write_note(duplicate, "dup-1")
+
+    config = {"_sync_dir": str(tmp_path), "_state_file": str(tmp_path / "state.json")}
+    monkeypatch.setattr(cli, "load_config", lambda _path: config)
+    monkeypatch.setattr(cli, "SyncState", lambda _path: DummyState({"dup-1": {"filePath": str(canonical)}}))
+
+    args = type("Args", (), {"config": "dummy.yaml", "apply": True})()
+    cli.cmd_duplicates(args)
+
+    out = capsys.readouterr().out
+    assert "Archived 1 duplicate file(s)" in out
+    assert canonical.exists()
+    assert not duplicate.exists()

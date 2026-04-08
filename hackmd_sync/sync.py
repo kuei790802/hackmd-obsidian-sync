@@ -2,6 +2,7 @@
 
 import os
 import time
+import shutil
 import logging
 
 from . import api as api_mod
@@ -204,6 +205,47 @@ def _scan_duplicate_hackmd_ids(sync_dir):
             if hackmd_id:
                 seen.setdefault(hackmd_id, []).append(file_path)
     return {hid: paths for hid, paths in seen.items() if len(paths) > 1}
+
+
+def find_duplicate_notes(sync_dir, state=None):
+    """Return duplicate note mappings with a canonical path and duplicate paths."""
+    duplicate_ids = _scan_duplicate_hackmd_ids(sync_dir)
+    duplicates = []
+    for hackmd_id, paths in sorted(duplicate_ids.items()):
+        canonical = None
+        if state is not None:
+            entry = state.get(hackmd_id)
+            if entry:
+                canonical = entry.get("filePath")
+        if canonical not in paths:
+            canonical = sorted(paths)[0]
+        duplicate_paths = [p for p in sorted(paths) if p != canonical]
+        duplicates.append({
+            "hackmd_id": hackmd_id,
+            "canonical_path": canonical,
+            "duplicate_paths": duplicate_paths,
+            "all_paths": sorted(paths),
+        })
+    return duplicates
+
+
+def archive_duplicate_notes(sync_dir, state=None, archive_root=None):
+    """Move non-canonical duplicate note files into an archive directory."""
+    archive_root = archive_root or os.path.join(sync_dir, ".duplicate-archive")
+    archived = []
+    for duplicate in find_duplicate_notes(sync_dir, state):
+        for path in duplicate["duplicate_paths"]:
+            rel_path = os.path.relpath(path, sync_dir)
+            target = os.path.join(archive_root, rel_path)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.move(path, target)
+            archived.append({
+                "hackmd_id": duplicate["hackmd_id"],
+                "original_path": path,
+                "archived_to": target,
+                "canonical_path": duplicate["canonical_path"],
+            })
+    return archived
 
 
 def _sync_push(api, state, sync_dir, sync_config, result):
