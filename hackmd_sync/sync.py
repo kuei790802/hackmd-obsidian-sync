@@ -186,11 +186,32 @@ def _sync_pull(api, state, sync_dir, sync_config, result):
         logger.debug(f"Pulled: {folder_path}/{title}")
 
 
+def _scan_duplicate_hackmd_ids(sync_dir):
+    """Return hackmd_id -> [file paths] for IDs that appear in more than one file."""
+    seen = {}
+    for root, _dirs, files in os.walk(sync_dir):
+        for fname in files:
+            if not fname.endswith(".md") or ".hackmd-conflict-" in fname:
+                continue
+            file_path = os.path.join(root, fname)
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except PermissionError:
+                continue
+            fm, _body = frontmatter.parse(content)
+            hackmd_id = fm.get("hackmd_id", "")
+            if hackmd_id:
+                seen.setdefault(hackmd_id, []).append(file_path)
+    return {hid: paths for hid, paths in seen.items() if len(paths) > 1}
+
+
 def _sync_push(api, state, sync_dir, sync_config, result):
     """Push new/modified notes from Obsidian to HackMD."""
     tolerance = sync_config.get("mtime_tolerance", 2)
     read_perm = sync_config.get("default_read_permission", "owner")
     write_perm = sync_config.get("default_write_permission", "owner")
+    duplicate_ids = _scan_duplicate_hackmd_ids(sync_dir)
 
     for root, _dirs, files in os.walk(sync_dir):
         for fname in files:
@@ -217,6 +238,19 @@ def _sync_push(api, state, sync_dir, sync_config, result):
                 # Existing note: push if locally modified
                 entry = state.get(hackmd_id)
                 if entry:
+                    duplicate_paths = duplicate_ids.get(hackmd_id, [])
+                    if duplicate_paths:
+                        canonical = entry.get("filePath") or sorted(duplicate_paths)[0]
+                        if file_path != canonical:
+                            logger.warning(
+                                "Duplicate hackmd_id %s found in %d files; skipping non-canonical path: %s",
+                                hackmd_id,
+                                len(duplicate_paths),
+                                file_path,
+                            )
+                            result.skipped += 1
+                            continue
+
                     last_local = entry.get("localMtime", 0)
                     if file_mtime > last_local + tolerance:
                         resp = api.update_note(hackmd_id, body.strip())

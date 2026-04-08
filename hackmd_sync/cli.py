@@ -19,22 +19,46 @@ def setup_logging(config):
 
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
+    handlers = [logging.FileHandler(log_file)]
+    if sys.stdout.isatty():
+        handlers.append(logging.StreamHandler(sys.stdout))
+
     logging.basicConfig(
         level=getattr(logging, level, logging.INFO),
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout),
-        ],
+        handlers=handlers,
+        force=True,
     )
 
 
 def cmd_run(args):
     config = load_config(args.config)
     setup_logging(config)
-    result = run_sync(config)
-    print(f"Sync: {result}")
+
+    lock_path = os.path.join(config["_config_dir"], "sync.lock")
+    lock_fd = None
+    try:
+        if os.path.exists(lock_path):
+            age = time.time() - os.path.getmtime(lock_path)
+            if age > 3600:
+                os.remove(lock_path)
+
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(lock_fd, str(os.getpid()).encode())
+    except FileExistsError:
+        logging.getLogger(__name__).warning("Another sync process is already running; skipping this cycle")
+        print("Sync: skipped (another sync is already running)")
+        return
+
+    try:
+        result = run_sync(config)
+        print(f"Sync: {result}")
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
 
 
 def cmd_setup(args):

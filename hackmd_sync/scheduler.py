@@ -69,9 +69,9 @@ def _install_launchd(python, config_path, interval):
         <string>{python}</string>
         <string>-m</string>
         <string>hackmd_sync</string>
-        <string>run</string>
         <string>--config</string>
         <string>{config_path}</string>
+        <string>run</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{SCRIPT_DIR}</string>
@@ -116,7 +116,7 @@ Description=HackMD-Obsidian Sync
 [Service]
 Type=oneshot
 WorkingDirectory={SCRIPT_DIR}
-ExecStart={python} -m hackmd_sync run --config {config_path}
+ExecStart={python} -m hackmd_sync --config {config_path} run
 """
 
     timer = f"""[Unit]
@@ -159,7 +159,7 @@ def _uninstall_systemd():
 
 def _install_cron(python, config_path, interval):
     minutes = max(1, interval // 60)
-    cmd = f"*/{minutes} * * * * cd {SCRIPT_DIR} && {python} -m hackmd_sync run --config {config_path} >> ~/.config/hackmd-sync/sync.log 2>&1"
+    cmd = f"*/{minutes} * * * * cd {SCRIPT_DIR} && {python} -m hackmd_sync --config {config_path} run >> ~/.config/hackmd-sync/sync.log 2>&1"
 
     # Get existing crontab
     try:
