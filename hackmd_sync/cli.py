@@ -8,7 +8,7 @@ import time
 
 from . import __version__
 from .config import load_config, get_config_dir
-from .sync import run_sync, find_duplicate_notes, archive_duplicate_notes
+from .sync import run_sync, find_duplicate_notes, archive_duplicate_notes, find_content_duplicates
 from .state import SyncState
 from .scheduler import install, uninstall
 
@@ -262,6 +262,25 @@ def cmd_duplicates(args):
         print("Dry-run only. Re-run with `duplicates --apply` to archive non-canonical duplicate files.")
 
 
+def cmd_content_duplicates(args):
+    config = load_config(args.config)
+    vault_path = config["obsidian"]["vault_path"]
+    duplicates = find_content_duplicates(vault_path, similarity_threshold=args.threshold)
+
+    if not duplicates:
+        print("No potential content duplicates found.")
+        return
+
+    print(f"Potential content duplicates found: {len(duplicates)}\n")
+    for item in duplicates:
+        print(f"Title: {item['title']}")
+        print(f"  Match type: {item['mode']}")
+        print(f"  Similarity: {item['similarity']}")
+        for path in item['paths']:
+            print(f"  Path: {path}")
+        print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="hackmd-sync",
@@ -281,6 +300,8 @@ def main():
     sub.add_parser("conflicts", help="List unresolved conflicts")
     duplicates_parser = sub.add_parser("duplicates", help="Scan or archive duplicate HackMD note mappings")
     duplicates_parser.add_argument("--apply", action="store_true", help="Archive non-canonical duplicate files instead of only reporting them")
+    content_dup_parser = sub.add_parser("content-duplicates", help="Scan the vault for same-title notes with identical or highly similar content")
+    content_dup_parser.add_argument("--threshold", type=float, default=0.95, help="Similarity threshold for near-duplicate detection (default: 0.95)")
 
     args = parser.parse_args()
 
@@ -293,6 +314,7 @@ def main():
         "log": cmd_log,
         "conflicts": cmd_conflicts,
         "duplicates": cmd_duplicates,
+        "content-duplicates": cmd_content_duplicates,
     }
 
     if args.command in commands:

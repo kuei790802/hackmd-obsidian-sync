@@ -96,6 +96,7 @@ python3 -m hackmd_sync log         # Tail the sync log
 python3 -m hackmd_sync conflicts   # List unresolved conflicts
 python3 -m hackmd_sync duplicates  # Dry-run duplicate hackmd_id report
 python3 -m hackmd_sync duplicates --apply  # Archive non-canonical duplicates safely
+python3 -m hackmd_sync content-duplicates  # Scan the whole vault for same-title content duplicates
 ```
 
 ## Configuration
@@ -135,6 +136,7 @@ If you see repeated `429` responses from HackMD:
 - check for duplicate `hackmd_id` values in your vault
 - run `python3 -m hackmd_sync duplicates` to inspect duplicate mappings
 - run `python3 -m hackmd_sync duplicates --apply` to archive non-canonical duplicates into `.duplicate-archive/`
+- run `python3 -m hackmd_sync content-duplicates` to catch same-title notes whose bodies are identical or nearly identical across folders
 
 ## FAQ
 

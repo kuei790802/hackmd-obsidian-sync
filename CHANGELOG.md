@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - New `duplicates` CLI command for dry-run reporting of duplicate `hackmd_id` mappings.
 - New `duplicates --apply` mode that archives non-canonical duplicate files into `.duplicate-archive/` instead of deleting them.
+- New `content-duplicates` CLI command that scans the whole Obsidian vault for same-title notes with identical or highly similar bodies, even when frontmatter differs.
 
 ### Operational guidance
 - If logs warn about duplicate `hackmd_id` values, keep a single canonical note per HackMD note ID in the vault.

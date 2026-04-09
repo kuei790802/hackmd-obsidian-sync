@@ -263,3 +263,65 @@ def test_scan_duplicate_hackmd_ids_ignores_archive_directory(tmp_path):
     duplicates = sync._scan_duplicate_hackmd_ids(str(tmp_path))
 
     assert duplicates == {}
+
+
+def test_find_content_duplicates_matches_same_title_and_body_ignoring_frontmatter(tmp_path):
+    note1 = tmp_path / "HackMD" / "系統架構 v2.md"
+    note2 = tmp_path / "保險Bot專案" / "01_架構設計" / "系統架構 v2.md"
+    note1.parent.mkdir(parents=True, exist_ok=True)
+    note2.parent.mkdir(parents=True, exist_ok=True)
+    note1.write_text(
+        "---\nhackmd_id: abc\nlast_synced: 2026-04-07\n---\n\n# 系統架構 v2\n\n共同正文\n",
+        encoding="utf-8",
+    )
+    note2.write_text(
+        "---\nstatus: active\nupdated: 2026-04-01\n---\n\n# 系統架構 v2\n\n共同正文\n",
+        encoding="utf-8",
+    )
+
+    duplicates = sync.find_content_duplicates(str(tmp_path))
+
+    assert len(duplicates) == 1
+    assert duplicates[0]["title"] == "系統架構 v2"
+    assert duplicates[0]["similarity"] == 1.0
+    assert duplicates[0]["paths"] == [str(note1), str(note2)]
+
+
+def test_find_content_duplicates_skips_archive_directory(tmp_path):
+    note1 = tmp_path / "A" / "Note.md"
+    note2 = tmp_path / ".duplicate-archive" / "Note.md"
+    note1.parent.mkdir(parents=True, exist_ok=True)
+    note2.parent.mkdir(parents=True, exist_ok=True)
+    content = "# Note\n\nSame body\n"
+    note1.write_text(content, encoding="utf-8")
+    note2.write_text(content, encoding="utf-8")
+
+    duplicates = sync.find_content_duplicates(str(tmp_path))
+
+    assert duplicates == []
+
+
+def test_cmd_content_duplicates_prints_report(tmp_path, monkeypatch, capsys):
+    note1 = tmp_path / "HackMD" / "系統架構 v2.md"
+    note2 = tmp_path / "保險Bot專案" / "01_架構設計" / "系統架構 v2.md"
+    note1.parent.mkdir(parents=True, exist_ok=True)
+    note2.parent.mkdir(parents=True, exist_ok=True)
+    content = "# 系統架構 v2\n\n共同正文\n"
+    note1.write_text(content, encoding="utf-8")
+    note2.write_text(content, encoding="utf-8")
+
+    config = {
+        "obsidian": {"vault_path": str(tmp_path)},
+        "_sync_dir": str(tmp_path / "HackMD"),
+        "_state_file": str(tmp_path / "state.json"),
+    }
+    monkeypatch.setattr(cli, "load_config", lambda _path: config)
+
+    args = type("Args", (), {"config": "dummy.yaml", "threshold": 0.95})()
+    cli.cmd_content_duplicates(args)
+
+    out = capsys.readouterr().out
+    assert "Potential content duplicates found: 1" in out
+    assert "系統架構 v2" in out
+    assert str(note1) in out
+    assert str(note2) in out

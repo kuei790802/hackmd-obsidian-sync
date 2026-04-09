@@ -1,9 +1,11 @@
 """Core sync engine: bidirectional HackMD <-> Obsidian sync."""
 
 import os
+import re
 import time
 import shutil
 import logging
+import difflib
 
 from . import api as api_mod
 from . import frontmatter
@@ -206,6 +208,79 @@ def _scan_duplicate_hackmd_ids(sync_dir):
             if hackmd_id:
                 seen.setdefault(hackmd_id, []).append(file_path)
     return {hid: paths for hid, paths in seen.items() if len(paths) > 1}
+
+
+def _extract_note_title(path, body):
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def _normalize_note_body(body):
+    normalized = body.replace("\r\n", "\n")
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    return normalized.strip()
+
+
+def find_content_duplicates(vault_path, similarity_threshold=0.95):
+    """Find potential duplicate notes across the vault by title + body similarity."""
+    notes_by_title = {}
+    for root, dirs, files in os.walk(vault_path):
+        dirs[:] = [d for d in dirs if d != ".duplicate-archive"]
+        for fname in files:
+            if not fname.endswith(".md") or ".hackmd-conflict-" in fname:
+                continue
+            path = os.path.join(root, fname)
+            try:
+                raw = open(path, "r", encoding="utf-8").read()
+            except PermissionError:
+                continue
+            _fm, body = frontmatter.parse(raw)
+            title = _extract_note_title(path, body)
+            normalized_body = _normalize_note_body(body)
+            notes_by_title.setdefault(title, []).append({
+                "path": path,
+                "body": normalized_body,
+            })
+
+    duplicates = []
+    for title, notes in sorted(notes_by_title.items()):
+        if len(notes) < 2:
+            continue
+        groups = {}
+        for note in notes:
+            groups.setdefault(note["body"], []).append(note["path"])
+        for body, paths in groups.items():
+            if len(paths) >= 2:
+                duplicates.append({
+                    "title": title,
+                    "similarity": 1.0,
+                    "paths": sorted(paths),
+                    "mode": "exact-body",
+                })
+                continue
+
+        if duplicates and duplicates[-1]["title"] == title:
+            continue
+
+        best = None
+        for i in range(len(notes)):
+            for j in range(i + 1, len(notes)):
+                ratio = difflib.SequenceMatcher(None, notes[i]["body"], notes[j]["body"]).ratio()
+                if ratio >= similarity_threshold:
+                    candidate = {
+                        "title": title,
+                        "similarity": round(ratio, 4),
+                        "paths": sorted([notes[i]["path"], notes[j]["path"]]),
+                        "mode": "similar-body",
+                    }
+                    if best is None or candidate["similarity"] > best["similarity"]:
+                        best = candidate
+        if best:
+            duplicates.append(best)
+    return duplicates
 
 
 def find_duplicate_notes(sync_dir, state=None):
