@@ -3,6 +3,7 @@
 import os
 import sys
 import subprocess
+import objc
 
 from AppKit import (
     NSObject,
@@ -20,7 +21,7 @@ from .scheduler import get_service_status
 
 class HackMDSyncStatusApp(NSObject):
     def initWithConfigPath_(self, config_path):
-        self = super().init()
+        self = objc.super(HackMDSyncStatusApp, self).init()
         if self is None:
             return None
         self.config_path = config_path

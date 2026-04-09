@@ -2,6 +2,7 @@
 
 import os
 import sys
+import shutil
 import subprocess
 import platform
 import logging
@@ -165,6 +166,7 @@ def install_menubar(python, config_path):
         return "Menu bar app is only supported on macOS/launchd"
     plist_path = _get_menubar_plist_path()
     log_path = os.path.expanduser("~/.config/hackmd-sync/menubar.log")
+    gui_python = shutil.which("pythonw") or python
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -173,7 +175,7 @@ def install_menubar(python, config_path):
     <string>{MENUBAR_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{python}</string>
+        <string>{gui_python}</string>
         <string>-m</string>
         <string>hackmd_sync</string>
         <string>--config</string>
