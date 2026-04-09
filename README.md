@@ -92,6 +92,12 @@ python3 -m hackmd_sync run         # Run one sync cycle
 python3 -m hackmd_sync status      # Show sync status
 python3 -m hackmd_sync install     # Install as background service
 python3 -m hackmd_sync uninstall   # Remove background service
+python3 -m hackmd_sync service-status  # Show launchd/background service state
+python3 -m hackmd_sync start       # Start the background service
+python3 -m hackmd_sync stop        # Stop the background service
+python3 -m hackmd_sync menubar     # Launch the macOS menu bar controller
+python3 -m hackmd_sync menubar-install   # Auto-launch the menu bar controller at login
+python3 -m hackmd_sync menubar-uninstall # Remove the menu bar controller
 python3 -m hackmd_sync log         # Tail the sync log
 python3 -m hackmd_sync conflicts   # List unresolved conflicts
 python3 -m hackmd_sync duplicates  # Dry-run duplicate hackmd_id report
@@ -129,6 +135,7 @@ Recent hardening added a few protections to make scheduled sync safer:
 - Background schedulers now pass `--config` correctly before the `run` subcommand.
 - If the same `hackmd_id` appears in multiple local files, only the canonical file tracked in state is pushed.
 - Non-interactive scheduler runs no longer duplicate every log line into the same log file.
+- On macOS you can control the sync service with `service-status`, `start`, `stop`, and the optional menu bar app.
 
 If you see repeated `429` responses from HackMD:
 - verify that only one scheduler is installed

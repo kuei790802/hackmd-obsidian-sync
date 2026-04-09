@@ -325,3 +325,92 @@ def test_cmd_content_duplicates_prints_report(tmp_path, monkeypatch, capsys):
     assert "系統架構 v2" in out
     assert str(note1) in out
     assert str(note2) in out
+
+
+def test_get_launchd_service_status_parses_loaded_state(monkeypatch):
+    monkeypatch.setattr(scheduler, "detect_platform", lambda: "launchd")
+    monkeypatch.setattr(
+        scheduler.subprocess,
+        "run",
+        lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": "{\"Label\":\"com.hackmd-obsidian.sync\"}"})(),
+    )
+
+    status = scheduler.get_service_status()
+
+    assert status["installed"] is True
+    assert status["loaded"] is True
+    assert status["running"] is True
+    assert status["scheduler"] == "launchd"
+
+
+def test_get_launchd_service_status_handles_missing_service(monkeypatch):
+    monkeypatch.setattr(scheduler, "detect_platform", lambda: "launchd")
+    monkeypatch.setattr(scheduler, "_get_launchd_plist_path", lambda: "/tmp/missing.plist")
+    monkeypatch.setattr(scheduler.os.path, "exists", lambda path: False)
+    monkeypatch.setattr(
+        scheduler.subprocess,
+        "run",
+        lambda *args, **kwargs: type("Result", (), {"returncode": 1, "stdout": "", "stderr": "not found"})(),
+    )
+
+    status = scheduler.get_service_status()
+
+    assert status["installed"] is False
+    assert status["loaded"] is False
+    assert status["running"] is False
+
+
+def test_start_service_calls_launchctl_load(monkeypatch):
+    monkeypatch.setattr(scheduler, "detect_platform", lambda: "launchd")
+    plist = "/tmp/com.hackmd-obsidian.sync.plist"
+    monkeypatch.setattr(scheduler, "_get_launchd_plist_path", lambda: plist)
+    monkeypatch.setattr(scheduler.os.path, "exists", lambda path: path == plist)
+    calls = []
+    monkeypatch.setattr(scheduler.subprocess, "run", lambda args, **kwargs: calls.append(args) or type("Result", (), {"returncode": 0})())
+
+    msg = scheduler.start_service()
+
+    assert calls == [["launchctl", "load", plist]]
+    assert "started" in msg.lower()
+
+
+def test_stop_service_calls_launchctl_unload(monkeypatch):
+    monkeypatch.setattr(scheduler, "detect_platform", lambda: "launchd")
+    plist = "/tmp/com.hackmd-obsidian.sync.plist"
+    monkeypatch.setattr(scheduler, "_get_launchd_plist_path", lambda: plist)
+    monkeypatch.setattr(scheduler.os.path, "exists", lambda path: path == plist)
+    calls = []
+    monkeypatch.setattr(scheduler.subprocess, "run", lambda args, **kwargs: calls.append(args) or type("Result", (), {"returncode": 0})())
+
+    msg = scheduler.stop_service()
+
+    assert calls == [["launchctl", "unload", plist]]
+    assert "stopped" in msg.lower()
+
+
+def test_cmd_service_status_prints_summary(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "get_service_status", lambda: {
+        "scheduler": "launchd",
+        "installed": True,
+        "loaded": True,
+        "running": True,
+        "label": "com.hackmd-obsidian.sync",
+    })
+
+    cli.cmd_service_status(type("Args", (), {})())
+
+    out = capsys.readouterr().out
+    assert "Scheduler:  launchd" in out
+    assert "Running:    yes" in out
+
+
+def test_cmd_start_and_stop_delegate_to_scheduler(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "start_service", lambda: "Service started")
+    monkeypatch.setattr(cli, "stop_service", lambda: "Service stopped")
+
+    cli.cmd_start(type("Args", (), {})())
+    cli.cmd_stop(type("Args", (), {})())
+
+    out = capsys.readouterr().out
+    assert "Service started" in out
+    assert "Service stopped" in out

@@ -10,7 +10,7 @@ from . import __version__
 from .config import load_config, get_config_dir
 from .sync import run_sync, find_duplicate_notes, archive_duplicate_notes, find_content_duplicates
 from .state import SyncState
-from .scheduler import install, uninstall
+from .scheduler import install, uninstall, get_service_status, start_service, stop_service, install_menubar, uninstall_menubar
 
 
 def setup_logging(config):
@@ -210,6 +210,38 @@ def cmd_uninstall(args):
     print(msg)
 
 
+def cmd_service_status(args):
+    status = get_service_status()
+    print(f"Scheduler:  {status['scheduler']}")
+    print(f"Label:      {status['label']}")
+    print(f"Installed:  {'yes' if status['installed'] else 'no'}")
+    print(f"Loaded:     {'yes' if status['loaded'] else 'no'}")
+    print(f"Running:    {'yes' if status['running'] else 'no'}")
+
+
+def cmd_start(args):
+    print(start_service())
+
+
+def cmd_stop(args):
+    print(stop_service())
+
+
+def cmd_menubar(args):
+    from .menubar import launch_menubar_app
+    launch_menubar_app(args.config)
+
+
+def cmd_menubar_install(args):
+    config = load_config(args.config)
+    config_path = args.config or os.path.join(config['_config_dir'], 'config.yaml')
+    print(install_menubar(sys.executable, config_path))
+
+
+def cmd_menubar_uninstall(args):
+    print(uninstall_menubar())
+
+
 def cmd_log(args):
     config = load_config(args.config)
     log_file = config.get("_log_file", "")
@@ -296,6 +328,12 @@ def main():
     sub.add_parser("status", help="Show sync status")
     sub.add_parser("install", help="Install as background service")
     sub.add_parser("uninstall", help="Remove background service")
+    sub.add_parser("service-status", help="Show background service status")
+    sub.add_parser("start", help="Start the background service")
+    sub.add_parser("stop", help="Stop the background service")
+    sub.add_parser("menubar", help="Launch the macOS menu bar controller")
+    sub.add_parser("menubar-install", help="Install the macOS menu bar controller at login")
+    sub.add_parser("menubar-uninstall", help="Remove the macOS menu bar controller")
     sub.add_parser("log", help="Tail the sync log")
     sub.add_parser("conflicts", help="List unresolved conflicts")
     duplicates_parser = sub.add_parser("duplicates", help="Scan or archive duplicate HackMD note mappings")
@@ -311,6 +349,12 @@ def main():
         "status": cmd_status,
         "install": cmd_install,
         "uninstall": cmd_uninstall,
+        "service-status": cmd_service_status,
+        "start": cmd_start,
+        "stop": cmd_stop,
+        "menubar": cmd_menubar,
+        "menubar-install": cmd_menubar_install,
+        "menubar-uninstall": cmd_menubar_uninstall,
         "log": cmd_log,
         "conflicts": cmd_conflicts,
         "duplicates": cmd_duplicates,

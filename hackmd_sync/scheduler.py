@@ -10,6 +10,15 @@ logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LABEL = "com.hackmd-obsidian.sync"
+MENUBAR_LABEL = "com.hackmd-obsidian.menubar"
+
+
+def _get_launchd_plist_path():
+    return os.path.expanduser(f"~/Library/LaunchAgents/{LABEL}.plist")
+
+
+def _get_menubar_plist_path():
+    return os.path.expanduser(f"~/Library/LaunchAgents/{MENUBAR_LABEL}.plist")
 
 
 def detect_platform():
@@ -55,7 +64,7 @@ def uninstall():
 
 
 def _install_launchd(python, config_path, interval):
-    plist_path = os.path.expanduser(f"~/Library/LaunchAgents/{LABEL}.plist")
+    plist_path = _get_launchd_plist_path()
     log_path = os.path.expanduser("~/.config/hackmd-sync/sync.log")
 
     plist = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -98,12 +107,105 @@ def _install_launchd(python, config_path, interval):
 
 
 def _uninstall_launchd():
-    plist_path = os.path.expanduser(f"~/Library/LaunchAgents/{LABEL}.plist")
+    plist_path = _get_launchd_plist_path()
     if os.path.exists(plist_path):
         subprocess.run(["launchctl", "unload", plist_path], capture_output=True)
         os.remove(plist_path)
         return "launchd service removed"
     return "No launchd service found"
+
+
+def get_service_status():
+    scheduler = detect_platform()
+    status = {
+        "scheduler": scheduler,
+        "label": LABEL,
+        "installed": False,
+        "loaded": False,
+        "running": False,
+    }
+    if scheduler == "launchd":
+        plist_path = _get_launchd_plist_path()
+        status["installed"] = os.path.exists(plist_path)
+        result = subprocess.run(["launchctl", "list", LABEL], capture_output=True, text=True)
+        if result.returncode == 0:
+            status["loaded"] = True
+            status["running"] = True
+        return status
+    status["installed"] = True
+    status["loaded"] = True
+    status["running"] = True
+    return status
+
+
+def start_service():
+    scheduler = detect_platform()
+    if scheduler == "launchd":
+        plist_path = _get_launchd_plist_path()
+        if not os.path.exists(plist_path):
+            return "Service is not installed. Run install first."
+        subprocess.run(["launchctl", "load", plist_path], check=True)
+        return "Service started (launchd loaded)"
+    return "Manual start is only implemented for launchd right now"
+
+
+def stop_service():
+    scheduler = detect_platform()
+    if scheduler == "launchd":
+        plist_path = _get_launchd_plist_path()
+        if not os.path.exists(plist_path):
+            return "Service is not installed."
+        subprocess.run(["launchctl", "unload", plist_path], check=True)
+        return "Service stopped (launchd unloaded)"
+    return "Manual stop is only implemented for launchd right now"
+
+
+def install_menubar(python, config_path):
+    if detect_platform() != "launchd":
+        return "Menu bar app is only supported on macOS/launchd"
+    plist_path = _get_menubar_plist_path()
+    log_path = os.path.expanduser("~/.config/hackmd-sync/menubar.log")
+    plist = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{MENUBAR_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{python}</string>
+        <string>-m</string>
+        <string>hackmd_sync</string>
+        <string>--config</string>
+        <string>{config_path}</string>
+        <string>menubar</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{SCRIPT_DIR}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{log_path}</string>
+    <key>StandardErrorPath</key>
+    <string>{log_path}</string>
+</dict>
+</plist>"""
+    with open(plist_path, "w") as f:
+        f.write(plist)
+    subprocess.run(["launchctl", "unload", plist_path], capture_output=True)
+    subprocess.run(["launchctl", "load", plist_path], check=True)
+    return "Menu bar app installed and loaded"
+
+
+def uninstall_menubar():
+    if detect_platform() != "launchd":
+        return "Menu bar app is only supported on macOS/launchd"
+    plist_path = _get_menubar_plist_path()
+    if os.path.exists(plist_path):
+        subprocess.run(["launchctl", "unload", plist_path], capture_output=True)
+        os.remove(plist_path)
+        return "Menu bar app removed"
+    return "No menu bar app found"
 
 
 def _install_systemd(python, config_path, interval):
